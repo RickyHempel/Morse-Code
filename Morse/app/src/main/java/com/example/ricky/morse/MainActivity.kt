@@ -28,7 +28,7 @@ class MainActivity : AppCompatActivity() {
         }
 
       mTextView.movementMethod=ScrollingMovementMethod()
-        testButton.setOnClickListener { view ->
+        testButton.setOnClickListener {
             appendTextandScroll(inputText.text.toString())
             hideKeyboard()
         }
@@ -48,9 +48,8 @@ class MainActivity : AppCompatActivity() {
             R.id.action_settings -> true
             else -> super.onOptionsItemSelected(item)
         }
-
-
     }
+
     private fun appendTextandScroll(text: String) {
             if (mTextView !=null){
                 mTextView.append(text+"\n")
@@ -58,15 +57,18 @@ class MainActivity : AppCompatActivity() {
         val layout = mTextView.layout
         if (layout != null)
         {
-            val scrollDelta=(layout!!.getLineBottom(mTextView.lineCount -1) - mTextView.scrollY - mTextView.height)
+            val scrollDelta=(layout.getLineBottom(mTextView.lineCount -1)
+                    - mTextView.scrollY - mTextView.height)
             if (scrollDelta > 0)
                 mTextView.scrollBy(0,scrollDelta)
         }
     }
-    fun Activity.hideKeyboard() {
+
+    private fun Activity.hideKeyboard() {
         hideKeyboard(if (currentFocus==null) View(this)else currentFocus)
     }
-    fun Context.hideKeyboard(view: View){
+
+    private fun Context.hideKeyboard(view: View){
         val inputMethodManager=getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
          inputMethodManager.hideSoftInputFromWindow(view.windowToken,0)
     }
