@@ -28,8 +28,10 @@ class MainActivity : AppCompatActivity() {
         }
 
       mTextView.movementMethod=ScrollingMovementMethod()
-        testButton.setOnClickListener { view -> appendTextandScroll(inputText.text.toString()) }
+        testButton.setOnClickListener { view ->
+            appendTextandScroll(inputText.text.toString())
             hideKeyboard()
+        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
