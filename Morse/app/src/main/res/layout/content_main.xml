@@ -87,4 +87,12 @@
         app:layout_constraintBaseline_toBaselineOf="@+id/testButton"
         app:layout_constraintEnd_toEndOf="@+id/mTextView" />
 
+    <Button
+        android:id="@+id/TransButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Translate"
+        app:layout_constraintBottom_toTopOf="@+id/mTextView"
+        app:layout_constraintStart_toStartOf="parent" />
+
 </android.support.constraint.ConstraintLayout>

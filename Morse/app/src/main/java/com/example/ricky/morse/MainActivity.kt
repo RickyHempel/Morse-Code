@@ -2,6 +2,7 @@ package com.example.ricky.morse
 
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.support.design.widget.Snackbar
 import android.support.v7.app.AppCompatActivity
@@ -43,6 +44,14 @@ class MainActivity : AppCompatActivity() {
             showCodes()
             hideKeyboard()
         }
+        TransButton.setOnClickListener{_ ->
+
+            mTextView.text = ""
+            appendTextandScroll(inputText.text.toString().toUpperCase())
+            val transText = translateText(inputText.text.toString())
+            appendTextandScroll(transText.toUpperCase())
+            hideKeyboard()
+        }
 
     }
 
@@ -57,7 +66,11 @@ class MainActivity : AppCompatActivity() {
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
         return when (item.itemId) {
-            R.id.action_settings -> true
+            R.id.action_settings -> {
+                val intent = Intent(this, SettingsActivity::class.java)
+                startActivity(intent)
+                return true
+            }
             else -> super.onOptionsItemSelected(item)
         }
 
@@ -95,8 +108,8 @@ class MainActivity : AppCompatActivity() {
         val jsonObj = JSONObject(jsonStr.substring(jsonStr.indexOf("{"), jsonStr.lastIndexOf("}")+1))
         return jsonObj
     }
-        var letToCodeDict:HashMap<String,String> = HashMap()
-        var codeToLetDict:HashMap<String,String> = HashMap()
+        private var letToCodeDict:HashMap<String,String> = HashMap()
+        private var codeToLetDict:HashMap<String,String> = HashMap()
 
         private fun buildDictWithJSON(jsonObj : JSONObject){
             for (k in jsonObj.keys()){
@@ -114,6 +127,19 @@ class MainActivity : AppCompatActivity() {
                 appendTextandScroll("$k: ${letToCodeDict[k]}")
             }
         }
+    private fun translateText(input : String) : String {
+        var r = ""
+        val s = input.toLowerCase()
+        for (c in s) {
+            if (c == ' ') r += "/ "
+            else if (letToCodeDict.containsKey(c.toString())) r += "${letToCodeDict[c.toString()]} "
+            else r += "? "
+        }
 
+        Log.d("log", "Morse: $r")
+
+        return r
+
+    }
 
     }
