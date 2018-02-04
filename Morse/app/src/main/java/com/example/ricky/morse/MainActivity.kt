@@ -1,5 +1,4 @@
 package com.example.ricky.morse
-
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -7,7 +6,6 @@ import android.os.Bundle
 import android.support.design.widget.Snackbar
 import android.support.v7.app.AppCompatActivity
 import android.text.method.ScrollingMovementMethod
-import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -38,18 +36,22 @@ class MainActivity : AppCompatActivity() {
         }
 
         val json= loadMorseJSON()
-        buildDictWithJSON(json)
+        buildDict(json)
         CodeButton.setOnClickListener{_ ->
-            mTextView.text=""
             showCodes()
             hideKeyboard()
         }
-        TransButton.setOnClickListener{_ ->
-
-            mTextView.text = ""
-            appendTextandScroll(inputText.text.toString().toUpperCase())
-            val transText = translateText(inputText.text.toString())
-            appendTextandScroll(transText.toUpperCase())
+        TransButton.setOnClickListener {_ ->
+            val input = inputText.text.toString()
+            appendTextandScroll(input.toUpperCase())
+            if (input.matches("(\\.|-|\\s/\\s|\\s)+".toRegex())) {
+                val transMorse = translateMorsecode(input)
+                appendTextandScroll(transMorse.toUpperCase())
+            }
+            else {
+                val transText = translateTextin(input)
+                appendTextandScroll(transText)
+            }
             hideKeyboard()
         }
 
@@ -62,9 +64,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
         return when (item.itemId) {
             R.id.action_settings -> {
                 val intent = Intent(this, SettingsActivity::class.java)
@@ -111,13 +110,11 @@ class MainActivity : AppCompatActivity() {
         private var letToCodeDict:HashMap<String,String> = HashMap()
         private var codeToLetDict:HashMap<String,String> = HashMap()
 
-        private fun buildDictWithJSON(jsonObj : JSONObject){
+        private fun buildDict(jsonObj : JSONObject){
             for (k in jsonObj.keys()){
                 val code = jsonObj[k].toString()
                     letToCodeDict.put(k,code)
                     codeToLetDict.put(code,k)
-                    Log.d("log","$k: $code")
-
             }
         }
 
@@ -127,7 +124,7 @@ class MainActivity : AppCompatActivity() {
                 appendTextandScroll("$k: ${letToCodeDict[k]}")
             }
         }
-    private fun translateText(input : String) : String {
+    private fun translateTextin(input : String) : String {
         var r = ""
         val s = input.toLowerCase()
         for (c in s) {
@@ -135,11 +132,17 @@ class MainActivity : AppCompatActivity() {
             else if (letToCodeDict.containsKey(c.toString())) r += "${letToCodeDict[c.toString()]} "
             else r += "? "
         }
-
-        Log.d("log", "Morse: $r")
-
         return r
-
     }
 
+    private fun translateMorsecode(input: String) : String {
+        var r = ""
+        val s = input.split("(\\s)+".toRegex())
+        for (item in s) {
+            if (item == "/") r += " "
+            else if (codeToLetDict.containsKey(item)) r += codeToLetDict[item]
+            else r += "[na]"
+        }
+        return r
+    }
     }
