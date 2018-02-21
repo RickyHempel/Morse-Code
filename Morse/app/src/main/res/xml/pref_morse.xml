@@ -8,6 +8,58 @@
         android:selectAllOnFocus="true"
         android:singleLine="true"
         android:title="Morse Pitch" />
+    <EditTextPreference
+        android:defaultValue="15"
+        android:inputType="number"
+        android:key="morse_speed"
+        android:maxLines="1"
+        android:selectAllOnFocus="true"
+        android:singleLine="true"
+        android:title="Morse Speed" />
+    <EditTextPreference
+        android:defaultValue="15"
+        android:inputType="number"
+        android:key="farnsworth_speed"
+        android:maxLines="1"
+        android:selectAllOnFocus="true"
+        android:singleLine="true"
+        android:title="Farnswoth Speed" />
+
+    <EditTextPreference
+        android:defaultValue=" "
+        android:inputType="textWebEditText"
+        android:key="to_num"
+        android:maxLines="1"
+        android:selectAllOnFocus="true"
+        android:singleLine="true"
+        android:title="To Phone Number" />
+
+    <EditTextPreference
+    android:defaultValue=" "
+    android:inputType="text"
+    android:key="to_acc"
+    android:maxLines="1"
+    android:selectAllOnFocus="true"
+    android:singleLine="true"
+    android:title="twilio_account_sid" />
+
+    <EditTextPreference
+        android:defaultValue=" "
+        android:inputType="text"
+        android:key="to_auth"
+        android:maxLines="1"
+        android:selectAllOnFocus="true"
+        android:singleLine="true"
+        android:title="twilio_auth_token" />
+
+    <EditTextPreference
+        android:defaultValue=" "
+        android:inputType="text"
+        android:key="From_to_num"
+        android:maxLines="1"
+        android:selectAllOnFocus="true"
+        android:singleLine="true"
+        android:title="fromTwilioNum" />
 
 
 

@@ -1,4 +1,5 @@
 package com.example.ricky.morse
+import android.Manifest.permission_group.SMS
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -8,6 +9,7 @@ import android.media.AudioManager
 import android.media.AudioTrack
 import android.os.Bundle
 import android.preference.PreferenceManager.getDefaultSharedPreferences
+import android.provider.Settings
 import android.provider.MediaStore
 import android.support.design.widget.Snackbar
 import android.support.v7.app.AppCompatActivity
@@ -17,53 +19,71 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import com.ajts.unifiedsmslibrary.Callback.SMSCallback
+import com.ajts.unifiedsmslibrary.Services.Twilio
+import com.ajts.unifiedsmslibrary.SMS
 
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.content_main.*
+import okhttp3.Call
+import okhttp3.Response
 import org.json.JSONObject
 import java.lang.Math.round
+import java.lang.Exception
 import java.time.Duration
 import java.util.*
 import kotlin.concurrent.timerTask
 
 
 class MainActivity : AppCompatActivity() {
-
+    private val SAMPLE_RATE: Int=44100
+    //for translate
     private var letToCodeDict: HashMap<String, String> = HashMap()
     private var codeToLetDict: HashMap<String, String> = HashMap()
-     private val dotLength:Int=50
-    private val dashLength:Int= dotLength *3
-    //pregenerate the sine wave soundbuffers for the dot and dash sound
-    private val dotSoundBuffer:ShortArray=genSineWaveSoundBuffer(550.0,dotLength)
-    private val dashSoundBuffer:ShortArray=genSineWaveSoundBuffer(550.0,dashLength)
 
     private var prefs:SharedPreferences?=null
 
-
     override fun onCreate(savedInstanceState: Bundle?) {
+
         super.onCreate(savedInstanceState)
         prefs = getDefaultSharedPreferences(this.applicationContext)
         setContentView(R.layout.activity_main)
         setSupportActionBar(toolbar)
-
-        val morsePich=prefs!!.getString("morse_pitch","500").toInt()
+        //vals to send
+        val toPhoneNum =prefs!!.getString("to_num"," ").toString()
+        val twilio_account_sid =prefs!!.getString("to_acc"," ").toString()
+        val twilio_auth_token =prefs!!.getString("to_auth"," ").toString()
+        val fromTwilioNum =prefs!!.getString("From_to_num"," ").toString()
+        //messaging
         fab.setOnClickListener { view ->
-            Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                    .setAction("Action", null).show()
+           val input = inputText.text.toString()
+            if (input.matches("(\\.|-|/|\\s)+".toRegex())){
+                val trans = translateMorsecode(input)
+                doTwilioSend(trans,toPhoneNum,twilio_account_sid,twilio_auth_token,fromTwilioNum)
+                }
+            else{
+                val transtext = translateTextin(input)
+                doTwilioSend(transtext,toPhoneNum,twilio_account_sid,twilio_auth_token,fromTwilioNum)
+            }
         }
 
         mTextView.movementMethod = ScrollingMovementMethod()
+    //testbutton
         testButton.setOnClickListener {
             appendTextandScroll(inputText.text.toString())
             hideKeyboard()
         }
-
+        //To show codes
         val json = loadMorseJSON()
+
+    //Dict
         buildDict(json)
+        //show codes
         CodeButton.setOnClickListener { _ ->
             showCodes()
             hideKeyboard()
         }
+            //translate input
         TransButton.setOnClickListener { _ ->
             val input = inputText.text.toString()
             appendTextandScroll(input.toUpperCase())
@@ -76,12 +96,73 @@ class MainActivity : AppCompatActivity() {
             }
             hideKeyboard()
         }
-        PlayButton.setOnClickListener {_ ->
-            val input = inputText.text.toString()
-            playString(translateTextin(input),0)
+        //settings
+        val dotLength:Int=(100/prefs!!.getString("morse_speed","15").toInt())
+        val dashLength:Int= dotLength *3
+        val farnsworth =3*(100/prefs!!.getString("farnsworth_speed","15").toInt())
+        val morsePitch = this.prefs!!.getString("morse_pitch","550").toInt()
+
+        //pregenerate the sine wave soundbuffers for the dot and dash sound
+        val dotSoundBuffer:ShortArray=genSineWaveSoundBuffer(morsePitch.toDouble(),dotLength)
+        val dashSoundBuffer:ShortArray=genSineWaveSoundBuffer(morsePitch.toDouble(),dashLength)
+
+        //Pause for the given number of millisec
+        //and then call the onDone function
+        fun pause(durationMsec:Int,onDone: () -> Unit={}){
+            Log.d("DEBUG","pause: " + durationMsec)
+            Timer().schedule( timerTask {
+                onDone()
+            }, durationMsec.toLong())
         }
 
+        //play dash sound and pause nad then do onDone
+         fun  playDash(onDone:()-> Unit={}){
+            Log.d("DEBUG","playDash")
+            playSoundBuffer(dashSoundBuffer,{ ->pause(dotLength,onDone)})
+        }
+
+        //play dot sound and pause and then do onDone
+         fun playDot(onDone: () -> Unit={}){
+            Log.d("DEBUG","playDot")
+            playSoundBuffer(dotSoundBuffer,{->pause(dotLength,onDone)})
+        }
+
+         fun playString(s: String, i: Int = 0) : Unit{
+            //s = string of "." and "-" to play
+            //i is index of which char to play
+            // This function is called recursivley
+            if (i > s.length - 1) {
+                return
+            }
+            var mDelay: Long = 0;
+            //thenFun=lambda function that will
+            //switch back to main thread and play the next char
+            var thenFun: () -> Unit = { ->
+                this@MainActivity.runOnUiThread(java.lang.Runnable {
+                    playString(s, i + 1)
+                })
+            }
+
+            var c = s[i]
+            Log.d("Log", "Processing pos:" + i + "char: {" +c+ "]")
+            if (c=='.')
+                playDot(thenFun)
+            else if (c=='-')
+                playDash(thenFun)
+            else if (c=='/')
+                pause(6*farnsworth,thenFun)
+            else if (c==' ')
+                pause(2*farnsworth,thenFun)
+        }
+    //playsoundss
+    PlayButton.setOnClickListener{_ ->
+        val input = inputText.text.toString()
+            playString(translateTextin(input),0)
     }
+
+    }
+
+
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         // Inflate the menu; this adds items to the action bar if it is present.
@@ -100,7 +181,7 @@ class MainActivity : AppCompatActivity() {
         }
 
     }
-
+    //helps with text in scroll
     private fun appendTextandScroll(text: String) {
         if (mTextView != null) {
             mTextView.append(text + "\n")
@@ -113,7 +194,7 @@ class MainActivity : AppCompatActivity() {
                 mTextView.scrollBy(0, scrollDelta)
         }
     }
-
+    //hides keyboard
     private fun Activity.hideKeyboard() {
         hideKeyboard(if (currentFocus == null) View(this) else currentFocus)
     }
@@ -123,7 +204,7 @@ class MainActivity : AppCompatActivity() {
         inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
     }
 
-
+    //loads a jsonfile
     private fun loadMorseJSON(): JSONObject {
         val filePath = "morse.json"
         val jsonStr = application.assets.open(filePath).bufferedReader().use {
@@ -133,7 +214,7 @@ class MainActivity : AppCompatActivity() {
         return jsonObj
     }
 
-
+    //builds a Dict
     private fun buildDict(jsonObj: JSONObject) {
         for (k in jsonObj.keys()) {
             val code = jsonObj[k].toString()
@@ -141,14 +222,14 @@ class MainActivity : AppCompatActivity() {
             codeToLetDict.put(code, k)
         }
     }
-
+    //show morse codes
     private fun showCodes() {
         appendTextandScroll("Here are the codes")
         for (k in letToCodeDict.keys.sorted()) {
             appendTextandScroll("$k: ${letToCodeDict[k]}")
         }
     }
-
+    //translate text input in
     private fun translateTextin(input: String): String {
         var r = ""
         val s = input.toLowerCase()
@@ -159,7 +240,7 @@ class MainActivity : AppCompatActivity() {
         }
         return r
     }
-
+    ///translate morse code in
     private fun translateMorsecode(input: String): String {
         var r = ""
         val s = input.split("(\\s)+".toRegex())
@@ -171,53 +252,9 @@ class MainActivity : AppCompatActivity() {
         return r
     }
 
-    private fun playString(s: String, i: Int = 0) : Unit{
-        //s = string of "." and "-" to play
-        //i is index of which char to play
-        // This function is called recursivley
-        if (i > s.length - 1) {
-            return
-        }
-        var mDelay: Long = 0;
-        //thenFun=lambda function that will
-        //switch back to main thread and play the next char
-        var thenFun: () -> Unit = { ->
-            this@MainActivity.runOnUiThread(java.lang.Runnable {
-                playString(s, i + 1)
-            })
-        }
 
-        var c = s[i]
-        Log.d("Log", "Processing pos:" + i + "char: {" +c+ "]")
-        if (c=='.')
-            playDot(thenFun)
-        else if (c=='-')
-            playDash(thenFun)
-        else if (c=='/')
-            pause(6*dotLength,thenFun)
-        else if (c==' ')
-            pause(2*dotLength,thenFun)
-    }
-    //play dash sound and pause nad then do onDone
-    private fun  playDash(onDone:()-> Unit={}){
-        Log.d("DEBUG","playDash")
-        playSoundBuffer(dashSoundBuffer,{ ->pause(dotLength,onDone)})
-    }
-    //play dot sound and pause and then do onDone
-    private fun playDot(onDone: () -> Unit={}){
-        Log.d("DEBUG","playDot")
-        playSoundBuffer(dotSoundBuffer,{->pause(dotLength,onDone)})
-    }
-    //Pause for the given number of millisec
-    //and then call the onDone function
-    private fun pause(durationMsec:Int,onDone: () -> Unit={}){
-        Log.d("DEBUG","pause: " + durationMsec)
-        Timer().schedule( timerTask {
-            onDone()
-        }, durationMsec.toLong())
-    }
 
-    private val SAMPLE_RATE: Int=44100
+    //makes sinewave
     private fun  genSineWaveSoundBuffer(frequency:Double, durationMsec: Int):ShortArray{
         val duration:Int=round((durationMsec/100.0)*SAMPLE_RATE).toInt()
         var mSound:Double
@@ -267,6 +304,53 @@ class MainActivity : AppCompatActivity() {
         })
         mAudioTrack.play()
         mAudioTrack.write(nBuffer,0,minBufferSize)
+    }
+// Twilio / Unified SMS Sending API for Android from:
+// https://androidmads.blogspot.com/2017/11/unified-sms-sending-api-for-android.html
+
+// Add this to your build.gradel app file in the dependencies:
+//     compile 'com.ajts.library.unifiedsms:unifiedsmslibrary:1.0.0'
+// Add this to manifest file (above app):
+//     <uses-permission android:name="android.permission.INTERNET" />
+// Twilio test accounts will only send to pre-verified phone numbers
+//     so send to the one you registered with, or add others at the twilio site
+
+    fun doTwilioSend(message: String, toPhoneNum: String,twilio_account_sid: String,twilio_auth_token:String,fromTwilioNum:String){
+        // IF YOU HAVE A PUBLIC GIT, DO NOT, DO NOT, PUT YOUR TWILIO SID/TOKENs HERE
+        // AND DO NOT CHECK IT INTO GIT!!!
+        // Once you check it into a PUBLIC git, it is there for ever and will be stolen.
+        // Move them to a JSON file that is in the .gitignore
+        // Or make them a user setting, that the user would enter
+        // In a real app, move the twilio  parts to a server, so that it cannot be stolen.
+        //
+
+
+
+
+        val senderName    = fromTwilioNum.toString()  // ??
+
+        val sms = SMS();
+        val twilio = Twilio(twilio_account_sid, twilio_auth_token)
+
+        // This code was converted from Java to Kotlin
+        //  and then it had to have its parameter types changed before it would work
+
+        sms.sendSMS(twilio, senderName, toPhoneNum, message, object : SMSCallback {
+            override fun onResponse(call: okhttp3.Call?, response: Response?) {
+                Log.v("twilio", response.toString())
+                showSnack(response.toString())
+            }
+            override fun onFailure(call: okhttp3.Call?, e: java.lang.Exception?) {
+                Log.v("twilio", e.toString())
+                showSnack(e.toString())
+            }
+        })
+    }
+
+    // helper function to show a quick notice
+    fun showSnack(s:String) {
+        Snackbar.make(this.findViewById(android.R.id.content), s, Snackbar.LENGTH_LONG)
+                .setAction("Action", null).show()
     }
 }
 
